@@ -1,15 +1,80 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import MarketSerializer, SellerDetailSerializer, SellerCreateSerializer
-from market_app.models import Market, Seller
+from .serializers import MarketSerializer, ProductSerializer, SellerSerializer
+from market_app.models import Market, Product, Seller
+from rest_framework.views import APIView
+from rest_framework import mixins
+from rest_framework import generics
+from django.shortcuts import get_object_or_404
+from rest_framework import viewsets
+
+class MarketsView(generics.ListCreateAPIView):
+
+    queryset = Market.objects.all()
+    serializer_class = MarketSerializer
+
+class MarketSingleView(generics.RetrieveUpdateDestroyAPIView):
+
+    queryset = Market.objects.all()
+    serializer_class = MarketSerializer
+
+class SellerOfMarketList(generics.ListAPIView):
+
+    serializer_class = SellerSerializer
+
+    def get_queryset(self):
+        market_id = self.kwargs['pk']
+        market = Market.objects.get(pk=market_id)
+
+        return market.sellers.all()
+    
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    
+class ProductViewSetOld(viewsets.ViewSet):
+    queryset = Product.objects.all()
+
+    def list(self, request):
+        serializer = ProductSerializer(self.queryset, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, pk=None):
+        product = get_object_or_404(self.queryset, pk=pk)
+        serializer = ProductSerializer(product)
+        return Response(serializer.data)
+    
+    def create(self, request):
+        serializer = ProductSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+# class MarketDetailView(mixins.RetrieveModelMixin,
+#                        mixins.UpdateModelMixin,
+#                        mixins.DestroyModelMixin,
+#                        generics.GenericAPIView):
+
+#     queryset = Market.objects.all()
+#     serializer_class = MarketSerializer
+
+#     def get(self, request, *args, **kwargs):
+#         return self.retrieve(request, *args, **kwargs)
+
+#     def put(self, request, *args, **kwargs):
+#         return self.update(request, *args, **kwargs)
+
+#     def delete(self, request, *args, **kwargs):
+#         return self.destroy(request, *args, **kwargs)
 
 @api_view(['GET', 'POST'])
 def first_view(request):
 
     if request.method == 'GET':
         markets = Market.objects.all()
-        serializer = MarketSerializer(markets, many=True)
+        serializer = MarketSerializer(markets, many=True, context={'request': request})
 
         return Response(serializer.data)
     
@@ -27,7 +92,7 @@ def market_single_view(request, pk):
 
     if request.method == 'GET':
         market = Market.objects.get(pk=pk)
-        serializer = MarketSerializer(market)
+        serializer = MarketSerializer(market, context={'request': request})
 
         return Response(serializer.data)
     
@@ -46,18 +111,27 @@ def market_single_view(request, pk):
         serializer = MarketSerializer(market)
         market.delete()
         return Response(serializer.data)
-    
+
+@api_view()
+def sellers_single_view(request, pk):
+    if request.method == 'GET':
+        seller = Seller.objects.get(pk=pk)
+        serializer = SellerSerializer(seller, context={'request': request})
+
+        return Response(serializer.data)
+
+
 @api_view(['GET', 'POST'])
 def sellers_view(request):
 
     if request.method == 'GET':
         sellers = Seller.objects.all()
-        serializer = SellerDetailSerializer(sellers, many=True)
+        serializer = SellerSerializer(sellers, many=True, context={'request': request})
 
         return Response(serializer.data)
     
     if request.method == 'POST':
-        serializer = SellerCreateSerializer(data=request.data)
+        serializer = SellerSerializer(data=request.data)
         
         if (serializer.is_valid()):
             serializer.save()
